@@ -1,0 +1,162 @@
+---
+title: "Group Assingment"
+author: "Reece Wooten, Kyle Katzen and Lufang Liu"
+date: "12/2/2017"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fpp)
+library(dplyr)
+library(DataCombine)
+library(glmnet)
+
+```
+
+## Question 1
+```{r}
+case_data<-read.csv('Case Shipments.csv')
+seas_data<-read.csv('Seasonality Index.csv')
+```
+
+```{r}
+y<-ts(case_data["Case.Shipments"])
+y_tr <- window(y, start=c(13),end=c(48))
+y_te <- window(y, start=c(49), end=c(60))
+y_reg <-case_data[13:60,"Case.Shipments"]
+
+case_data['lag.cp1']<-slide(case_data, Var = "Consumer.Packs", slideBy = -1,NewVar = 'lag.cp1')['lag.cp1']
+case_data['lag.cp2']<-slide(case_data, Var = "Consumer.Packs", slideBy = -2,NewVar = 'lag.cp2')['lag.cp2']
+case_data['lag.da1']<-slide(case_data, Var = "Dealer.Allowance", slideBy = -1,NewVar = 'lag.da1')['lag.da1']
+case_data['lag.da2']<-slide(case_data, Var = "Dealer.Allowance", slideBy = -2,NewVar = 'lag.da2')['lag.da2']
+
+X_tr <- as.matrix(case_data[13:48,3:8])
+X_te <- as.matrix(case_data[49:60,3:8])
+X<- as.matrix(case_data[13:60,3:8])
+```
+
+```{r}
+mod1_cv<-cv.glmnet(x = X,y = y_reg,nfolds = 10)
+best_lam<-mod1_cv$lambda.min
+```
+
+```{r}
+mod1_cv.coef=predict(mod1_cv,type='coefficients',s=best_lam)
+predict(mod1_cv,type='coefficients',s=best_lam)
+```
+
+```{r}
+x_red<-X[,c('Consumer.Packs','Dealer.Allowance','lag.cp1','lag.da1','lag.da2')]
+mod2_lm<-lm(y_reg~x_red)
+summary(mod2_lm)
+```
+```{r}
+x_red_tr<-X_tr[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
+x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
+```
+
+## Question 2 
+
+### Figure 2.0
+```{r}
+tsdisplay(y_tr)
+```
+
+
+```{r}
+mod3<-Arima(y_tr,order = c(1,2,2),xreg = x_red_tr)
+summary(mod3)
+```
+
+### Figure 2.1
+```{r}
+tsdiag(mod3)
+```
+
+### Figure 2.2
+```{r}
+tsdisplay(mod3$residuals)
+```
+
+### Figure 2.3
+```{r}
+for2<-forecast(mod3,xreg =x_red_te,h=12 )
+plot(for2)
+lines(y_te,col='red')
+```
+
+
+
+## Question 3
+```{r}
+y_adj1<-case_data['Case.Shipments']/seas_data['Seasonality.Index']
+y_adj<-ts(case_data['Case.Shipments']/seas_data['Seasonality.Index'])
+y_tr_adj <- window(y_adj, start=c(13),end=c(48))
+y_te_adj <- window(y_adj, start=c(49), end=c(60))
+y_reg_adj <-y_adj1[13:60,"Case.Shipments"]
+
+```
+
+```{r}
+mod2_cv<-cv.glmnet(x = X,y = y_reg_adj,nfolds = 10)
+best_lam2<-mod2_cv$lambda.min
+```
+
+```{r}
+mod2_cv.coef=predict(mod2_cv,type='coefficients',s=best_lam2)
+predict(mod2_cv,type='coefficients',s=best_lam2)
+```
+
+```{r}
+x_red<-X[,c('Consumer.Packs','Dealer.Allowance','lag.cp1','lag.cp2','lag.da1','lag.da2')]
+mod3_lm<-lm(y_reg_adj~x_red)
+summary(mod3_lm)
+```
+
+```{r}
+x_red_tr<-X_tr[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
+x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
+```
+
+### Figure 3.0
+```{r}
+tsdisplay(y_tr_adj)
+```
+
+
+```{r}
+mod3<-Arima(y_tr_adj,order = c(2,2,1),xreg = x_red_tr)
+summary(mod3)
+```
+
+### Figure 3.1
+```{r}
+tsdiag(mod3)
+```
+
+### Figure 3.2
+```{r}
+tsdisplay(mod3$residuals)
+```
+
+
+```{r}
+seas_data['Seasonality.Index'][49:60,]
+```
+
+### Figure 3.2
+```{r}
+
+for2<-forecast(mod3,xreg =x_red_te,h=12)
+plot(for2)
+lines(y_te_adj,col='red')
+```
+
+
